@@ -246,6 +246,11 @@ class MinesweeperBrowser:
                 cell.state = state
                 cell.value = value
 
+        # The displayed counter shows remaining mines (total - flagged),
+        # not total mines. Compute actual total.
+        if mine_count is not None:
+            board.mine_count = mine_count + board.flagged_count()
+
         return board
 
     async def _read_mine_counter(self) -> int | None:
