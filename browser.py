@@ -207,24 +207,30 @@ class MinesweeperBrowser:
     # ── Board reading ─────────────────────────────────────────────────
 
     async def read_board(self, level: int | None = None) -> Board:
-        cell_elements = await self.page.query_selector_all(".cell")
+        # Single JS call to read all cells — much faster than individual queries
+        raw = await self.page.evaluate('''() => {
+            const cells = document.querySelectorAll('.cell');
+            const result = [];
+            for (const el of cells) {
+                const id = el.id;
+                if (!id || !id.startsWith('cell_')) continue;
+                result.push({id: id, cls: el.className});
+            }
+            return result;
+        }''')
 
         max_row, max_col = 0, 0
         parsed: list[tuple[int, int, CellState, int]] = []
 
-        for el in cell_elements:
-            cell_id = await el.get_attribute("id")
-            if not cell_id or not cell_id.startswith("cell_"):
-                continue
-            parts = cell_id.split("_")
+        for item in raw:
+            parts = item['id'].split("_")
             if len(parts) != 3:
                 continue
             col_idx, row_idx = int(parts[1]), int(parts[2])
             max_row = max(max_row, row_idx)
             max_col = max(max_col, col_idx)
 
-            class_attr = await el.get_attribute("class") or ""
-            classes = class_attr.split()
+            classes = item['cls'].split()
             state = _parse_state(classes)
             value = _parse_value(classes) if state == CellState.OPENED else 0
             parsed.append((row_idx, col_idx, state, value))
