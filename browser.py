@@ -249,22 +249,33 @@ class MinesweeperBrowser:
         return board
 
     async def _read_mine_counter(self) -> int | None:
-        for sel in ["#top_area_mines", ".top-area-mines", "[class*=mines]"]:
+        """Read mine counter from minesweeper.online.
+
+        The counter is split into 3 digit elements:
+          #top_area_mines_100  (hundreds)
+          #top_area_mines_10   (tens)
+          #top_area_mines_1    (ones)
+        Each has a CSS class like 'hd_top-area-numN' where N is the digit.
+        """
+        digits = []
+        for sel in ["#top_area_mines_100", "#top_area_mines_10", "#top_area_mines_1"]:
             el = await self.page.query_selector(sel)
-            if el:
-                text = (await el.inner_text()).strip()
-                cleaned = text.lstrip("0") or "0"
-                if cleaned.startswith("-"):
+            if not el:
+                return None
+            cls = await el.get_attribute("class") or ""
+            # Extract digit from class like 'hd_top-area-num8'
+            digit = None
+            for part in cls.split():
+                if part.startswith("hd_top-area-num"):
                     try:
-                        return -int(cleaned[1:])
+                        digit = int(part[len("hd_top-area-num"):])
                     except ValueError:
                         pass
-                else:
-                    try:
-                        return int(cleaned)
-                    except ValueError:
-                        pass
-        return None
+            if digit is None:
+                return None
+            digits.append(digit)
+
+        return digits[0] * 100 + digits[1] * 10 + digits[2]
 
     # ── Cell interactions ─────────────────────────────────────────────
 
