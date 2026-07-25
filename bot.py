@@ -403,14 +403,14 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             wins = 0
             played = 0
             stop = False
-            print("Continuous mode — type 'stop' + Enter to stop.")
+            print("Continuous mode — type 's' + Enter to stop.")
 
             def _check_stdin() -> bool:
-                """Non-blocking check for 'stop' on stdin."""
+                """Non-blocking check for 's' on stdin."""
                 try:
                     if select.select([sys.stdin], [], [], 0)[0]:
                         line = sys.stdin.readline().strip().lower()
-                        return line == "stop"
+                        return line == "s"
                 except Exception:
                     pass
                 return False
@@ -421,7 +421,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     if status != "ongoing":
                         # Start a new game
                         if played > 0:
-                            print(f"  → Waiting 5s… (type 'stop' to stop)")
+                            print(f"  → Waiting 5s… (type 's' to stop)")
                             for _ in range(10):
                                 await asyncio.sleep(0.5)
                                 if await asyncio.get_event_loop().run_in_executor(None, _check_stdin):
@@ -441,6 +441,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     move_count = 0
 
                     while not stop:
+                        if await asyncio.get_event_loop().run_in_executor(None, _check_stdin):
+                            stop = True
+                            break
                         status = await browser.get_game_status()
                         if status == "won":
                             elapsed = time.monotonic() - start_time
