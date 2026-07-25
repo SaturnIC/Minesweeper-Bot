@@ -307,24 +307,14 @@ class MinesweeperBrowser:
                 await self._human_click(box, button="right")
 
     async def chord_cell(self, row: int, col: int) -> None:
-        """Double-click an opened cell to reveal all unflagged neighbors
+        """Middle-click an opened cell to reveal all unflagged neighbors
         (when the number of adjacent flags matches the cell's value)."""
         selector = f"#cell_{col}_{row}"
         el = await self.page.query_selector(selector)
         if el:
             box = await el.bounding_box()
             if box:
-                # Move to cell with human-like path
-                offset_x = random.uniform(box["width"] * 0.2, box["width"] * 0.8)
-                offset_y = random.uniform(box["height"] * 0.2, box["height"] * 0.8)
-                target_x = box["x"] + offset_x
-                target_y = box["y"] + offset_y
-                await self._move_mouse_to(target_x, target_y)
-                await asyncio.sleep(_human_delay(0.03, 0.05))
-                # Double click
-                await self.page.mouse.click(target_x, target_y)
-                await asyncio.sleep(_human_delay(0.05, 0.08))
-                await self.page.mouse.click(target_x, target_y)
+                await self._human_click(box, button="middle")
 
     async def get_game_status(self) -> Literal["ongoing", "won", "lost"]:
         smiley_el = await self.page.query_selector("#top_area_face")
