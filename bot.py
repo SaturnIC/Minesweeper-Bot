@@ -382,9 +382,105 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
             print("Bot backed off. Window is still open.")
 
+        elif action == "playall":
+            wins = 0
+            played = 0
+            print("Continuous mode — Ctrl+C to stop.")
+            try:
+                while True:
+                    status = await browser.get_game_status()
+                    if status != "ongoing":
+                        # Start a new game
+                        if played > 0:
+                            print(f"  → Waiting 5s before next game…")
+                            await asyncio.sleep(5)
+                        await browser.new_game()
+                        await asyncio.sleep(1)
+                        played += 1
+
+                    board = await browser.read_board()
+                    print(f"Game {played}: {board.rows}x{board.cols}, {board.mine_count} mines")
+
+                    start_time = time.monotonic()
+                    move_count = 0
+
+                    while True:
+                        status = await browser.get_game_status()
+                        if status == "won":
+                            elapsed = time.monotonic() - start_time
+                            wins += 1
+                            print(f"  WON in {elapsed:.1f}s, {move_count} moves  [{wins}/{played}]")
+                            break
+                        if status == "lost":
+                            print(f"  LOST after {move_count} moves  [{wins}/{played}]")
+                            break
+
+                        board = await browser.read_board()
+                        remaining = board.remaining_mines()
+                        opened = len(board.opened_cells())
+                        total = board.rows * board.cols
+                        print(
+                            f"\r  Opened: {opened}/{total} | Mines left: {remaining} | Moves: {move_count}",
+                            end="",
+                            flush=True,
+                        )
+
+                        actions = solve_deterministic(board)
+                        flags = [a for a in actions if a.type == ActionType.FLAG]
+                        reveals = [a for a in actions if a.type == ActionType.REVEAL]
+
+                        for a in flags:
+                            await browser.flag_cell(a.row, a.col)
+                            move_count += 1
+
+                        if flags:
+                            await _sleep(delay)
+                            while True:
+                                chord_actions = solve_chord(board)
+                                if not chord_actions:
+                                    break
+                                for act in chord_actions:
+                                    await browser.chord_cell(act.row, act.col)
+                                    move_count += 1
+                                await _sleep(delay)
+                                board = await browser.read_board()
+                            continue
+
+                        for a in reveals:
+                            await browser.click_cell(a.row, a.col)
+                            move_count += 1
+
+                        if reveals:
+                            await _sleep(delay)
+                            continue
+
+                        chord_actions = solve_chord(board)
+                        if chord_actions:
+                            for act in chord_actions:
+                                await browser.chord_cell(act.row, act.col)
+                                move_count += 1
+                            await _sleep(delay)
+                            continue
+
+                        guess = solve_probability(board)
+                        if guess:
+                            if guess.type == ActionType.FLAG:
+                                await browser.flag_cell(guess.row, guess.col)
+                            else:
+                                await browser.click_cell(guess.row, guess.col)
+                            move_count += 1
+                            await _sleep(delay)
+                            continue
+
+                        print("\n  No moves available")
+                        break
+
+            except KeyboardInterrupt:
+                print(f"\nStopped. Results: {wins}/{played} wins")
+
         else:
             print(f"Unknown command: {action}")
-            print("Commands: play, solve, status, flag <row> <col>, click <row> <col>, quit")
+            print("Commands: play, playall, solve, status, flag <row> <col>, click <row> <col>, quit")
 
 
 async def main() -> None:
