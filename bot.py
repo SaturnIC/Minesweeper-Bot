@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import random
 import sys
 import time
 
 from browser import BOARD_SIZES, MinesweeperBrowser
 from models import Board
 from solver import Action, ActionType, solve_chord, solve_deterministic, solve_probability
+
+
+def _human_sleep(base: float) -> None:
+    """Return a variable delay that feels human."""
+    # Not async — caller wraps in asyncio.sleep
+    pass
+
+
+async def _sleep(base: float) -> None:
+    """Sleep with human-like jitter."""
+    await asyncio.sleep(base + random.uniform(0, base * 0.8))
 
 
 async def play_game(
@@ -61,7 +73,7 @@ async def play_game(
                 for act in chord_actions:
                     await browser.chord_cell(act.row, act.col)
                     move_count += 1
-                await asyncio.sleep(delay)
+                await _sleep(delay)
                 continue
 
         # Phase 3: probability-based guess
@@ -82,7 +94,7 @@ async def play_game(
                 await browser.click_cell(act.row, act.col)
             move_count += 1
 
-        await asyncio.sleep(delay)
+        await _sleep(delay)
 
     return False
 
@@ -110,7 +122,7 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
                 for act in chord_actions:
                     await browser.chord_cell(act.row, act.col)
                     move_count += 1
-                await asyncio.sleep(delay)
+                await _sleep(delay)
                 board = await browser.read_board()
                 print(f"  Chorded {len(chord_actions)} cells")
                 continue
@@ -135,7 +147,7 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
             await browser.click_cell(a.row, a.col)
             move_count += 1
 
-        await asyncio.sleep(delay)
+        await _sleep(delay)
 
         board = await browser.read_board()
         status = await browser.get_game_status()
@@ -263,7 +275,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         for act in chord_actions:
                             await browser.chord_cell(act.row, act.col)
                             move_count += 1
-                        await asyncio.sleep(delay)
+                        await _sleep(delay)
                         continue
 
                 if not actions:
@@ -282,7 +294,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         await browser.click_cell(act.row, act.col)
                     move_count += 1
 
-                await asyncio.sleep(delay)
+                await _sleep(delay)
 
             print("Bot backed off. Window is still open.")
 

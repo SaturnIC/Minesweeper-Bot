@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import math
+import random
 from typing import Literal
 
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
@@ -26,6 +28,37 @@ CLASS_TO_STATE = {
     "hd_type11": CellState.EXPLODED,
 }
 
+# Stealth script: patch navigator.webdriver and related fingerprints
+_STEALTH_JS = """
+// Remove webdriver flag
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+// Patch plugins to look like a real browser
+Object.defineProperty(navigator, 'plugins', {
+    get: () => [1, 2, 3, 4, 5],
+});
+
+// Patch languages
+Object.defineProperty(navigator, 'languages', {
+    get: () => ['en-US', 'en'],
+});
+
+// Remove automation-related properties
+delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
+
+// Patch chrome runtime
+window.chrome = { runtime: {} };
+
+// Patch permissions API
+const originalQuery = window.navigator.permissions.query;
+window.navigator.permissions.query = (parameters) =>
+    parameters.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission })
+        : originalQuery(parameters);
+"""
+
 
 def _parse_value(classes: list[str]) -> int:
     for i in range(1, 9):
@@ -41,6 +74,20 @@ def _parse_state(classes: list[str]) -> CellState:
     return CellState.CLOSED
 
 
+def _bezier(t: float, p0: tuple[float, float], p1: tuple[float, float],
+            p2: tuple[float, float], p3: tuple[float, float]) -> tuple[float, float]:
+    """Cubic bezier curve point at t ∈ [0,1]."""
+    u = 1 - t
+    x = u**3 * p0[0] + 3 * u**2 * t * p1[0] + 3 * u * t**2 * p2[0] + t**3 * p3[0]
+    y = u**3 * p0[1] + 3 * u**2 * t * p1[1] + 3 * u * t**2 * p2[1] + t**3 * p3[1]
+    return x, y
+
+
+def _human_delay(base: float = 0.05, jitter: float = 0.04) -> float:
+    """Random delay that feels human."""
+    return base + random.uniform(0, jitter)
+
+
 class MinesweeperBrowser:
     def __init__(self, headless: bool = False) -> None:
         self.headless = headless
@@ -48,15 +95,35 @@ class MinesweeperBrowser:
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
+        self._mouse_x: float = 0
+        self._mouse_y: float = 0
 
     async def start(self) -> None:
         self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(headless=self.headless)
+        self._browser = await self._playwright.chromium.launch(
+            headless=self.headless,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+            ],
+        )
         self._context = await self._browser.new_context(
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
             viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            timezone_id="America/New_York",
         )
         self._page = await self._context.new_page()
+
+        # Inject stealth script before every navigation
+        await self._page.add_init_script(_STEALTH_JS)
+
+        # Set initial mouse position to center of viewport
+        self._mouse_x = 960.0
+        self._mouse_y = 540.0
 
     async def stop(self) -> None:
         if self._browser:
@@ -75,12 +142,73 @@ class MinesweeperBrowser:
         url = f"https://minesweeper.online/start/{level}"
         await self.page.goto(url, wait_until="networkidle")
         await self.page.wait_for_selector("#game", timeout=30000)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(_human_delay(0.5, 0.3))
+
+    # ── Human-like mouse ──────────────────────────────────────────────
+
+    async def _move_mouse_to(self, target_x: float, target_y: float) -> None:
+        """Move mouse to target with a curved bezier path and jitter."""
+        start_x, start_y = self._mouse_x, self._mouse_y
+
+        # Add some randomness to the path
+        dist = math.hypot(target_x - start_x, target_y - start_y)
+        if dist < 5:
+            # Already close, just jitter
+            self._mouse_x = target_x + random.uniform(-1, 1)
+            self._mouse_y = target_y + random.uniform(-1, 1)
+            await self.page.mouse.move(self._mouse_x, self._mouse_y)
+            return
+
+        # Control points for bezier curve — adds natural arc
+        mid_x = (start_x + target_x) / 2 + random.uniform(-dist * 0.15, dist * 0.15)
+        mid_y = (start_y + target_y) / 2 + random.uniform(-dist * 0.15, dist * 0.15)
+
+        steps = max(8, int(dist / 40))
+        for i in range(1, steps + 1):
+            t = i / steps
+            x, y = _bezier(
+                t,
+                (start_x, start_y),
+                (mid_x, mid_y),
+                (mid_x + random.uniform(-5, 5), mid_y + random.uniform(-5, 5)),
+                (target_x, target_y),
+            )
+            # Add tiny jitter to simulate hand tremor
+            x += random.uniform(-0.5, 0.5)
+            y += random.uniform(-0.5, 0.5)
+            await self.page.mouse.move(x, y)
+            await asyncio.sleep(random.uniform(0.005, 0.02))
+
+        self._mouse_x = target_x
+        self._mouse_y = target_y
+
+    async def _human_click(
+        self, box: dict, button: str = "left", hover_first: bool = True
+    ) -> None:
+        """Click a cell like a human — move to it with offset, hover, then click."""
+        # Random offset within the cell (not dead center)
+        offset_x = random.uniform(box["width"] * 0.2, box["width"] * 0.8)
+        offset_y = random.uniform(box["height"] * 0.2, box["height"] * 0.8)
+        target_x = box["x"] + offset_x
+        target_y = box["y"] + offset_y
+
+        # Move mouse along curved path
+        await self._move_mouse_to(target_x, target_y)
+
+        # Brief hover (human pauses before clicking)
+        if hover_first:
+            await asyncio.sleep(_human_delay(0.03, 0.06))
+
+        await self.page.mouse.click(target_x, target_y, button=button)
+
+        # Tiny post-click pause
+        await asyncio.sleep(_human_delay(0.02, 0.03))
+
+    # ── Board reading ─────────────────────────────────────────────────
 
     async def read_board(self, level: int | None = None) -> Board:
         cell_elements = await self.page.query_selector_all(".cell")
 
-        # Auto-detect dimensions from cell IDs
         max_row, max_col = 0, 0
         parsed: list[tuple[int, int, CellState, int]] = []
 
@@ -104,10 +232,8 @@ class MinesweeperBrowser:
         rows = max_row + 1
         cols = max_col + 1
 
-        # Try to read mine counter from the page
         mine_count = await self._read_mine_counter()
         if mine_count is None:
-            # Fall back to level lookup if provided
             if level is not None and level in BOARD_SIZES:
                 mine_count = BOARD_SIZES[level][2]
             else:
@@ -123,14 +249,11 @@ class MinesweeperBrowser:
         return board
 
     async def _read_mine_counter(self) -> int | None:
-        """Try to read the mine counter from minesweeper.online."""
         for sel in ["#top_area_mines", ".top-area-mines", "[class*=mines]"]:
             el = await self.page.query_selector(sel)
             if el:
                 text = (await el.inner_text()).strip()
-                # The counter may show negative values or have leading zeros
                 cleaned = text.lstrip("0") or "0"
-                # Handle negative (e.g. "-01" → -1)
                 if cleaned.startswith("-"):
                     try:
                         return -int(cleaned[1:])
@@ -143,17 +266,15 @@ class MinesweeperBrowser:
                         pass
         return None
 
+    # ── Cell interactions ─────────────────────────────────────────────
+
     async def click_cell(self, row: int, col: int) -> None:
         selector = f"#cell_{col}_{row}"
         el = await self.page.query_selector(selector)
         if el:
             box = await el.bounding_box()
             if box:
-                await self.page.mouse.click(
-                    box["x"] + box["width"] / 2,
-                    box["y"] + box["height"] / 2,
-                )
-                await asyncio.sleep(0.05)
+                await self._human_click(box, button="left")
 
     async def flag_cell(self, row: int, col: int) -> None:
         selector = f"#cell_{col}_{row}"
@@ -161,26 +282,15 @@ class MinesweeperBrowser:
         if el:
             box = await el.bounding_box()
             if box:
-                await self.page.mouse.click(
-                    box["x"] + box["width"] / 2,
-                    box["y"] + box["height"] / 2,
-                    button="right",
-                )
-                await asyncio.sleep(0.05)
+                await self._human_click(box, button="right")
 
     async def chord_cell(self, row: int, col: int) -> None:
-        """Middle-click (chord) on a cell to reveal all unflagged neighbors."""
         selector = f"#cell_{col}_{row}"
         el = await self.page.query_selector(selector)
         if el:
             box = await el.bounding_box()
             if box:
-                await self.page.mouse.click(
-                    box["x"] + box["width"] / 2,
-                    box["y"] + box["height"] / 2,
-                    button="middle",
-                )
-                await asyncio.sleep(0.05)
+                await self._human_click(box, button="middle")
 
     async def get_game_status(self) -> Literal["ongoing", "won", "lost"]:
         smiley_el = await self.page.query_selector("#top_area_face")
@@ -196,5 +306,7 @@ class MinesweeperBrowser:
     async def new_game(self) -> None:
         smiley = await self.page.query_selector("#top_area_face")
         if smiley:
-            await smiley.click()
-            await asyncio.sleep(0.3)
+            box = await smiley.bounding_box()
+            if box:
+                await self._human_click(box, button="left")
+            await asyncio.sleep(_human_delay(0.3, 0.2))
