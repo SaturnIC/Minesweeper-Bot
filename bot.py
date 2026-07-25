@@ -126,11 +126,6 @@ async def play_game(
     return False
 
 
-def _solve_loop(browser: MinesweeperBrowser, board: Board, delay: float) -> None:
-    """Shared solve-one-step coroutine used by interactive solve command."""
-    return _solve_loop_gen(browser, board, delay)
-
-
 async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
     """Run the solver until it stalls or the game ends."""
     board = await browser.read_board()
@@ -140,6 +135,20 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
         return
 
     move_count = 0
+
+    async def _check_status() -> bool:
+        """Check if game ended. Print result and return True if so."""
+        nonlocal board
+        board = await browser.read_board()
+        s = await browser.get_game_status()
+        if s == "won":
+            print("  WON!")
+            return True
+        if s == "lost":
+            print("  LOST!")
+            return True
+        return False
+
     while True:
         actions = solve_deterministic(board)
 
@@ -153,6 +162,8 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
 
         if flags:
             await _sleep(delay)
+            if await _check_status():
+                break
             board = await browser.read_board()
 
             # Aggressively chord after flagging
@@ -164,10 +175,11 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
                     await browser.chord_cell(act.row, act.col)
                     move_count += 1
                 await _sleep(delay)
+                if await _check_status():
+                    return
                 board = await browser.read_board()
                 print(f"  Chorded {len(chord_actions)} cells")
 
-            # Re-check deterministic after chords opened new cells
             continue
 
         # No flags — reveal safe cells
@@ -177,6 +189,8 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
 
         if reveals:
             await _sleep(delay)
+            if await _check_status():
+                break
             board = await browser.read_board()
             continue
 
@@ -187,6 +201,8 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
                 await browser.chord_cell(act.row, act.col)
                 move_count += 1
             await _sleep(delay)
+            if await _check_status():
+                break
             board = await browser.read_board()
             print(f"  Chorded {len(chord_actions)} cells")
             continue
@@ -199,9 +215,11 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
             else:
                 await browser.click_cell(guess.row, guess.col)
             move_count += 1
-            print(f"  Guessing ({guess.row},{guess.col})")
             await _sleep(delay)
+            if await _check_status():
+                break
             board = await browser.read_board()
+            print(f"  Guessing ({guess.row},{guess.col})")
             continue
 
         print("  No moves available")
