@@ -235,7 +235,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
     print("Interactive mode — navigate to a game in the browser, then type a command.")
     print("Commands:")
     print("  play                 - play the current game to completion")
-    print("  playcontinuously     - play games back-to-back, new game after each win/loss")
+    print("  playcont     - play games back-to-back, new game after each win/loss")
     print("  solve                - solve one step (flag, chord, reveal, guess)")
     print("  status               - print the board")
     print("  click <row> <col>    - left-click a cell")
@@ -397,7 +397,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
             print("Bot backed off. Window is still open.")
 
-        elif action == "playcontinuously":
+        elif action == "playcont":
             import select
 
             wins = 0
@@ -510,7 +510,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
         else:
             print(f"Unknown command: {action}")
-            print("Commands: play, playcontinuously, solve, status, flag <row> <col>, click <row> <col>, quit")
+            print("Commands: play, playcont, solve, status, flag <row> <col>, click <row> <col>, quit")
 
 
 async def main() -> None:
