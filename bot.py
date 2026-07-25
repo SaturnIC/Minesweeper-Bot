@@ -229,7 +229,14 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
 async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
     """Interactive CLI mode: user drives the bot with commands."""
     print("Interactive mode — navigate to a game in the browser, then type a command.")
-    print("Commands: play, solve, status, flag <row> <col>, click <row> <col>, quit")
+    print("Commands:")
+    print("  play                 - play the current game to completion")
+    print("  playcontinuously     - play games back-to-back, new game after each win/loss")
+    print("  solve                - solve one step (flag, chord, reveal, guess)")
+    print("  status               - print the board")
+    print("  click <row> <col>    - left-click a cell")
+    print("  flag <row> <col>     - right-click to flag a cell")
+    print("  quit                 - exit")
     print()
 
     loop = asyncio.get_event_loop()
@@ -382,7 +389,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
             print("Bot backed off. Window is still open.")
 
-        elif action == "playall":
+        elif action == "playcontinuously":
             wins = 0
             played = 0
             print("Continuous mode — Ctrl+C to stop.")
@@ -480,7 +487,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
         else:
             print(f"Unknown command: {action}")
-            print("Commands: play, playall, solve, status, flag <row> <col>, click <row> <col>, quit")
+            print("Commands: play, playcontinuously, solve, status, flag <row> <col>, click <row> <col>, quit")
 
 
 async def main() -> None:
