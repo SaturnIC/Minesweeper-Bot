@@ -392,15 +392,17 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
         elif action == "playcontinuously":
             wins = 0
             played = 0
+            first = True
             print("Continuous mode — Ctrl+C to stop.")
             try:
                 while True:
                     status = await browser.get_game_status()
                     if status != "ongoing":
                         # Start a new game
-                        if played > 0:
+                        if not first:
                             print(f"  → Waiting 5s before next game…")
                             await asyncio.sleep(5)
+                        first = False
                         await browser.new_game()
                         await asyncio.sleep(2)
                         played += 1
