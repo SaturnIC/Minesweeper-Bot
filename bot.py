@@ -87,14 +87,74 @@ async def play_game(
     return False
 
 
-async def _detect_level(browser: MinesweeperBrowser) -> int:
-    """Detect board level by counting cells on the current page."""
-    cells = await browser.page.query_selector_all(".cell")
-    count = len(cells)
-    for level, (rows, cols, _) in BOARD_SIZES.items():
-        if count == rows * cols:
-            return level
-    return 1
+def _solve_loop(browser: MinesweeperBrowser, board: Board, delay: float) -> None:
+    """Shared solve-one-step coroutine used by interactive solve command."""
+    return _solve_loop_gen(browser, board, delay)
+
+
+async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
+    """Run the solver until it stalls or the game ends."""
+    board = await browser.read_board()
+    status = await browser.get_game_status()
+    if status != "ongoing":
+        print(f"Game already {status}.")
+        return
+
+    move_count = 0
+    while True:
+        actions = solve_deterministic(board)
+
+        if not actions:
+            chord_actions = solve_chord(board)
+            if chord_actions:
+                for act in chord_actions:
+                    await browser.chord_cell(act.row, act.col)
+                    move_count += 1
+                await asyncio.sleep(delay)
+                board = await browser.read_board()
+                print(f"  Chorded {len(chord_actions)} cells")
+                continue
+
+        if not actions:
+            guess = solve_probability(board)
+            if guess:
+                actions = [guess]
+                print(f"  Guessing ({guess.row},{guess.col})")
+
+        if not actions:
+            print("  No moves available")
+            break
+
+        flags = [a for a in actions if a.type == ActionType.FLAG]
+        reveals = [a for a in actions if a.type == ActionType.REVEAL]
+
+        for a in flags:
+            await browser.flag_cell(a.row, a.col)
+            move_count += 1
+        for a in reveals:
+            await browser.click_cell(a.row, a.col)
+            move_count += 1
+
+        await asyncio.sleep(delay)
+
+        board = await browser.read_board()
+        status = await browser.get_game_status()
+        remaining = board.remaining_mines()
+        opened = len(board.opened_cells())
+        total = board.rows * board.cols
+        print(
+            f"  Opened: {opened}/{total} | Mines left: {remaining} | Moves: {move_count}"
+        )
+
+        if status != "ongoing":
+            if status == "won":
+                print("  WON!")
+            else:
+                print("  LOST!")
+            break
+
+        if not (flags or reveals):
+            break
 
 
 async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
@@ -122,9 +182,8 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             break
 
         elif action == "status":
-            level = await _detect_level(browser)
             try:
-                board = await browser.read_board(level)
+                board = await browser.read_board()
             except Exception as e:
                 print(f"Error reading board: {e}")
                 continue
@@ -139,9 +198,8 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             r, c = int(cmd[1]), int(cmd[2])
             await browser.click_cell(r, c)
             await asyncio.sleep(0.3)
-            level = await _detect_level(browser)
             try:
-                board = await browser.read_board(level)
+                board = await browser.read_board()
                 status = await browser.get_game_status()
                 print(board)
                 print(f"Game: {status}")
@@ -155,98 +213,25 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             r, c = int(cmd[1]), int(cmd[2])
             await browser.flag_cell(r, c)
             await asyncio.sleep(0.3)
-            level = await _detect_level(browser)
             try:
-                board = await browser.read_board(level)
+                board = await browser.read_board()
                 print(board)
                 print(f"Mines left: {board.remaining_mines()}")
             except Exception as e:
                 print(f"Error: {e}")
 
         elif action == "solve":
-            level = await _detect_level(browser)
-            try:
-                board = await browser.read_board(level)
-            except Exception as e:
-                print(f"Error reading board: {e}")
-                continue
-
-            status = await browser.get_game_status()
-            if status != "ongoing":
-                print(f"Game already {status}. Start a new game in the browser.")
-                continue
-
-            move_count = 0
-            while True:
-                # Phase 1: deterministic
-                actions = solve_deterministic(board)
-
-                # Phase 2: chord
-                if not actions:
-                    chord_actions = solve_chord(board)
-                    if chord_actions:
-                        for act in chord_actions:
-                            await browser.chord_cell(act.row, act.col)
-                            move_count += 1
-                        await asyncio.sleep(delay)
-                        board = await browser.read_board(level)
-                        print(f"  Chorded {len(chord_actions)} cells")
-                        continue
-
-                # Phase 3: probability guess
-                if not actions:
-                    guess = solve_probability(board)
-                    if guess:
-                        actions = [guess]
-                        print(f"  Guessing ({guess.row},{guess.col})")
-
-                if not actions:
-                    print("  No moves available")
-                    break
-
-                flags = [a for a in actions if a.type == ActionType.FLAG]
-                reveals = [a for a in actions if a.type == ActionType.REVEAL]
-
-                for a in flags:
-                    await browser.flag_cell(a.row, a.col)
-                    move_count += 1
-                for a in reveals:
-                    await browser.click_cell(a.row, a.col)
-                    move_count += 1
-
-                await asyncio.sleep(delay)
-
-                # Re-read and check status
-                board = await browser.read_board(level)
-                status = await browser.get_game_status()
-                remaining = board.remaining_mines()
-                opened = len(board.opened_cells())
-                total = board.rows * board.cols
-                print(
-                    f"  Opened: {opened}/{total} | Mines left: {remaining} | Moves: {move_count}"
-                )
-
-                if status != "ongoing":
-                    if status == "won":
-                        print("  WON!")
-                    else:
-                        print("  LOST!")
-                    break
-
-                # Keep solving in the same step
-                if not (flags or reveals):
-                    break
+            await _run_solve_step(browser, delay)
 
         elif action == "play":
-            level = await _detect_level(browser)
             status = await browser.get_game_status()
             if status != "ongoing":
                 print("No ongoing game. Navigate to a game in the browser first.")
                 continue
 
-            print(f"Playing (level {level})…")
+            board = await browser.read_board()
+            print(f"Playing {board.rows}x{board.cols}, {board.mine_count} mines…")
 
-            rows, cols, mine_count = BOARD_SIZES[level]
             start_time = time.monotonic()
             move_count = 0
 
@@ -260,10 +245,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     print(f"\n  LOST after {move_count} moves")
                     break
 
-                board = await browser.read_board(level)
+                board = await browser.read_board()
                 remaining = board.remaining_mines()
                 opened = len(board.opened_cells())
-                total = rows * cols
+                total = board.rows * board.cols
                 print(
                     f"\r  Opened: {opened}/{total} | Mines left: {remaining} | Moves: {move_count}",
                     end="",

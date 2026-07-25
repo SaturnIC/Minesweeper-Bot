@@ -77,36 +77,71 @@ class MinesweeperBrowser:
         await self.page.wait_for_selector("#game", timeout=30000)
         await asyncio.sleep(0.5)
 
-    async def read_board(self, level: int = 1) -> Board:
-        rows, cols, mine_count = BOARD_SIZES[level]
-        board = Board(rows, cols, mine_count)
-
+    async def read_board(self, level: int | None = None) -> Board:
         cell_elements = await self.page.query_selector_all(".cell")
+
+        # Auto-detect dimensions from cell IDs
+        max_row, max_col = 0, 0
+        parsed: list[tuple[int, int, CellState, int]] = []
+
         for el in cell_elements:
             cell_id = await el.get_attribute("id")
             if not cell_id or not cell_id.startswith("cell_"):
                 continue
-
             parts = cell_id.split("_")
             if len(parts) != 3:
                 continue
-
             col_idx, row_idx = int(parts[1]), int(parts[2])
-            if row_idx >= rows or col_idx >= cols:
-                continue
+            max_row = max(max_row, row_idx)
+            max_col = max(max_col, col_idx)
 
             class_attr = await el.get_attribute("class") or ""
             classes = class_attr.split()
-
             state = _parse_state(classes)
             value = _parse_value(classes) if state == CellState.OPENED else 0
+            parsed.append((row_idx, col_idx, state, value))
 
+        rows = max_row + 1
+        cols = max_col + 1
+
+        # Try to read mine counter from the page
+        mine_count = await self._read_mine_counter()
+        if mine_count is None:
+            # Fall back to level lookup if provided
+            if level is not None and level in BOARD_SIZES:
+                mine_count = BOARD_SIZES[level][2]
+            else:
+                mine_count = 0
+
+        board = Board(rows, cols, mine_count)
+        for row_idx, col_idx, state, value in parsed:
             cell = board.get_cell(row_idx, col_idx)
             if cell:
                 cell.state = state
                 cell.value = value
 
         return board
+
+    async def _read_mine_counter(self) -> int | None:
+        """Try to read the mine counter from minesweeper.online."""
+        for sel in ["#top_area_mines", ".top-area-mines", "[class*=mines]"]:
+            el = await self.page.query_selector(sel)
+            if el:
+                text = (await el.inner_text()).strip()
+                # The counter may show negative values or have leading zeros
+                cleaned = text.lstrip("0") or "0"
+                # Handle negative (e.g. "-01" → -1)
+                if cleaned.startswith("-"):
+                    try:
+                        return -int(cleaned[1:])
+                    except ValueError:
+                        pass
+                else:
+                    try:
+                        return int(cleaned)
+                    except ValueError:
+                        pass
+        return None
 
     async def click_cell(self, row: int, col: int) -> None:
         selector = f"#cell_{col}_{row}"
