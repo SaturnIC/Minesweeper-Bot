@@ -74,7 +74,7 @@ class MinesweeperBrowser:
             level = LEVEL_MAP.get(level.lower(), 1)
         url = f"https://minesweeper.online/start/{level}"
         await self.page.goto(url, wait_until="networkidle")
-        await self.page.wait_for_selector("#game", timeout=15000)
+        await self.page.wait_for_selector("#game", timeout=30000)
         await asyncio.sleep(0.5)
 
     async def read_board(self, level: int = 1) -> Board:

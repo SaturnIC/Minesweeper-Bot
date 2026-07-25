@@ -129,24 +129,29 @@ async def main() -> None:
     await browser.start()
 
     wins = 0
+    played = 0
     try:
         for i in range(args.games):
-            if i > 0:
-                await browser.new_game()
-                await asyncio.sleep(0.5)
-            else:
-                await browser.open_game(args.level)
+            try:
+                if i > 0:
+                    await browser.new_game()
+                    await asyncio.sleep(0.5)
+                else:
+                    await browser.open_game(args.level)
 
-            print(f"Game {i + 1}/{args.games}:", end="")
-            won = await play_game(browser, args.level, delay=args.delay)
-            if won:
-                wins += 1
+                print(f"Game {i + 1}/{args.games}:", end="")
+                won = await play_game(browser, args.level, delay=args.delay)
+                played += 1
+                if won:
+                    wins += 1
+            except Exception as e:
+                print(f"Game {i + 1}/{args.games}: error — {e}")
 
     except KeyboardInterrupt:
         print("\nInterrupted by user")
     finally:
-        win_rate = (wins / args.games * 100) if args.games > 0 else 0
-        print(f"\nResults: {wins}/{args.games} wins ({win_rate:.0f}%)")
+        win_rate = (wins / played * 100) if played > 0 else 0
+        print(f"\nResults: {wins}/{played} wins ({win_rate:.0f}%)")
         await browser.stop()
 
 
