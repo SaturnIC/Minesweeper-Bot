@@ -390,18 +390,37 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             print("Bot backed off. Window is still open.")
 
         elif action == "playcontinuously":
+            import select
+
             wins = 0
             played = 0
             first = True
-            print("Continuous mode — Ctrl+C to stop.")
+            stop = False
+            print("Continuous mode — type 'stop' + Enter to stop.")
+
+            def _check_stdin() -> bool:
+                """Non-blocking check for 'stop' on stdin."""
+                try:
+                    if select.select([sys.stdin], [], [], 0)[0]:
+                        line = sys.stdin.readline().strip().lower()
+                        return line == "stop"
+                except Exception:
+                    pass
+                return False
+
             try:
-                while True:
+                while not stop:
                     status = await browser.get_game_status()
                     if status != "ongoing":
-                        # Start a new game
                         if not first:
-                            print(f"  → Waiting 5s before next game…")
-                            await asyncio.sleep(5)
+                            print(f"  → Waiting 5s… (type 'stop' to stop)")
+                            for _ in range(10):
+                                await asyncio.sleep(0.5)
+                                if await asyncio.get_event_loop().run_in_executor(None, _check_stdin):
+                                    stop = True
+                                    break
+                            if stop:
+                                break
                         first = False
                         await browser.new_game()
                         await asyncio.sleep(2)
@@ -413,7 +432,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     start_time = time.monotonic()
                     move_count = 0
 
-                    while True:
+                    while not stop:
                         status = await browser.get_game_status()
                         if status == "won":
                             elapsed = time.monotonic() - start_time
@@ -485,7 +504,8 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         break
 
             except KeyboardInterrupt:
-                print(f"\nStopped. Results: {wins}/{played} wins")
+                pass
+            print(f"\nStopped. Results: {wins}/{played} wins")
 
         else:
             print(f"Unknown command: {action}")
