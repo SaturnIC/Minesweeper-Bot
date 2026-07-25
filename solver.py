@@ -293,8 +293,10 @@ def solve_chord(board: Board) -> list[Action]:
     A chord action is valid when: opened cell's value == flagged neighbors,
     AND there are remaining closed (unflagged) neighbors.
     This is equivalent to rule 2 but uses chording for efficiency.
+
+    Returns actions sorted by number of cells revealed (descending).
     """
-    actions: list[Action] = []
+    actions: list[tuple[int, Action]] = []  # (cells_revealed, action)
     seen: set[tuple[int, int]] = set()
 
     for cell in board.opened_cells():
@@ -307,7 +309,24 @@ def solve_chord(board: Board) -> list[Action]:
 
         if len(flagged) == cell.value and unflagged_closed:
             if (cell.row, cell.col) not in seen:
-                actions.append(Action(ActionType.REVEAL, cell.row, cell.col))
+                actions.append((len(unflagged_closed), Action(ActionType.REVEAL, cell.row, cell.col)))
                 seen.add((cell.row, cell.col))
 
-    return actions
+    # Sort by most cells revealed first
+    actions.sort(key=lambda x: x[0], reverse=True)
+    return [a for _, a in actions]
+
+
+def chord_reveals(board: Board) -> set[tuple[int, int]]:
+    """Return the set of cells that would be revealed by all possible chords."""
+    revealed: set[tuple[int, int]] = set()
+    for cell in board.opened_cells():
+        if cell.value == 0:
+            continue
+        flagged = board.get_flagged_neighbors(cell.row, cell.col)
+        if len(flagged) == cell.value:
+            closed = board.get_closed_neighbors(cell.row, cell.col)
+            for c in closed:
+                if not c.is_flagged:
+                    revealed.add((c.row, c.col))
+    return revealed

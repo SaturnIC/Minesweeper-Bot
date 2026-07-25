@@ -8,7 +8,7 @@ import time
 
 from browser import BOARD_SIZES, MinesweeperBrowser
 from models import Board
-from solver import Action, ActionType, solve_chord, solve_deterministic, solve_probability
+from solver import Action, ActionType, solve_chord, solve_deterministic, solve_probability, chord_reveals
 
 
 def _human_sleep(base: float) -> None:
@@ -101,6 +101,10 @@ async def play_game(
             await _sleep(delay)
             continue
 
+        # Filter reveals: skip cells that would be revealed by any chord
+        chord_covered = chord_reveals(board)
+        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+
         # No chords — reveal safe cells individually
         for a in reveals:
             await browser.click_cell(a.row, a.col)
@@ -186,7 +190,7 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
 
             continue
 
-        # Before individual reveals, check for chords globally
+        # Check chords globally — prioritized by most cells revealed
         chord_actions = solve_chord(board)
         if chord_actions:
             for act in chord_actions:
@@ -198,6 +202,10 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
             board = await browser.read_board()
             print(f"  Chorded {len(chord_actions)} cells")
             continue
+
+        # Filter reveals: skip cells that would be revealed by any chord
+        chord_covered = chord_reveals(board)
+        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
 
         # No chords — reveal safe cells individually
         for a in reveals:
@@ -385,6 +393,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     await _sleep(delay)
                     continue
 
+                # Filter reveals: skip cells that would be revealed by any chord
+                chord_covered = chord_reveals(board)
+                reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+
                 # No chords — reveal safe cells individually
                 for a in reveals:
                     await browser.click_cell(a.row, a.col)
@@ -518,6 +530,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                                 move_count += 1
                             await _sleep(delay)
                             continue
+
+                        # Filter reveals: skip cells that would be revealed by any chord
+                        chord_covered = chord_reveals(board)
+                        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
 
                         # No chords — reveal safe cells individually
                         for a in reveals:
