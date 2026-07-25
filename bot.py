@@ -404,6 +404,17 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             played = 0
             stop = False
             print("Continuous mode — type 'stop' + Enter to stop.")
+
+            def _check_stdin() -> bool:
+                """Non-blocking check for 'stop' on stdin."""
+                try:
+                    if select.select([sys.stdin], [], [], 0)[0]:
+                        line = sys.stdin.readline().strip().lower()
+                        return line == "stop"
+                except Exception:
+                    pass
+                return False
+
             try:
                 while not stop:
                     status = await browser.get_game_status()
