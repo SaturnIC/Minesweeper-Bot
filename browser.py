@@ -20,16 +20,16 @@ BOARD_SIZES = {
 }
 
 CLASS_TO_STATE = {
-    "hdd_opened": CellState.OPENED,
-    "hdd_flag": CellState.FLAGGED,
-    "hdd_type10": CellState.MINE,
-    "hdd_type11": CellState.EXPLODED,
+    "hd_opened": CellState.OPENED,
+    "hd_flag": CellState.FLAGGED,
+    "hd_type10": CellState.MINE,
+    "hd_type11": CellState.EXPLODED,
 }
 
 
 def _parse_value(classes: list[str]) -> int:
     for i in range(1, 9):
-        if f"hdd_type{i}" in classes:
+        if f"hd_type{i}" in classes:
             return i
     return 0
 
@@ -52,7 +52,10 @@ class MinesweeperBrowser:
     async def start(self) -> None:
         self._playwright = await async_playwright().start()
         self._browser = await self._playwright.chromium.launch(headless=self.headless)
-        self._context = await self._browser.new_context()
+        self._context = await self._browser.new_context(
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+        )
         self._page = await self._context.new_page()
 
     async def stop(self) -> None:
@@ -145,24 +148,18 @@ class MinesweeperBrowser:
                 await asyncio.sleep(0.05)
 
     async def get_game_status(self) -> Literal["ongoing", "won", "lost"]:
-        game_el = await self.page.query_selector("#game")
-        if game_el:
-            cls = await game_el.get_attribute("class") or ""
-            if "gameover" in cls:
-                return "lost"
-
-        smiley_el = await self.page.query_selector("#smiley")
+        smiley_el = await self.page.query_selector("#top_area_face")
         if smiley_el:
             cls = await smiley_el.get_attribute("class") or ""
-            if "hd_win" in cls:
+            if "win" in cls:
                 return "won"
-            if "hd_lose" in cls or "hdd_lose" in cls:
+            if "lose" in cls:
                 return "lost"
 
         return "ongoing"
 
     async def new_game(self) -> None:
-        smiley = await self.page.query_selector("#smiley")
+        smiley = await self.page.query_selector("#top_area_face")
         if smiley:
             await smiley.click()
             await asyncio.sleep(0.3)

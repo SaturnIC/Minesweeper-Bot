@@ -12,14 +12,7 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture(scope="module")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="module")
-async def browser(event_loop):
+async def browser():
     b = MinesweeperBrowser(headless=True)
     await b.start()
     yield b
@@ -44,7 +37,7 @@ async def test_page_loads_and_has_game_element(browser):
 
 async def test_smiley_element_exists(browser):
     await browser.open_game(1)
-    smiley = await browser.page.query_selector("#smiley")
+    smiley = await browser.page.query_selector("#top_area_face")
     assert smiley is not None
 
 

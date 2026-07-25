@@ -111,14 +111,21 @@ async def main() -> None:
     parser.add_argument(
         "--headless",
         action="store_true",
-        help="Run browser in headless mode",
+        help="Run browser in headless mode (no visible window)",
+    )
+    parser.add_argument(
+        "--headful",
+        action="store_true",
+        help="Run browser in headful mode with visible window (default)",
     )
     args = parser.parse_args()
+
+    headless = args.headless and not args.headful
 
     level_names = {1: "Beginner", 2: "Intermediate", 3: "Expert"}
     print(f"Minesweeper Bot — {level_names[args.level]}, {args.games} game(s)")
 
-    browser = MinesweeperBrowser(headless=args.headless)
+    browser = MinesweeperBrowser(headless=headless)
     await browser.start()
 
     wins = 0
