@@ -402,7 +402,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                             print(f"  → Waiting 5s before next game…")
                             await asyncio.sleep(5)
                         await browser.new_game()
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(2)
                         played += 1
 
                     board = await browser.read_board()
