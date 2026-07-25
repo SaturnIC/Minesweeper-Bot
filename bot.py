@@ -92,21 +92,21 @@ async def play_game(
                 board = await browser.read_board(level)
             continue
 
-        # No flags — reveal safe cells
-        for a in reveals:
-            await browser.click_cell(a.row, a.col)
-            move_count += 1
-
-        if reveals:
-            await _sleep(delay)
-            continue
-
-        # Deterministic stalled — try chord as fallback
+        # Before individual reveals, check for chords globally
         chord_actions = solve_chord(board)
         if chord_actions:
             for act in chord_actions:
                 await browser.chord_cell(act.row, act.col)
                 move_count += 1
+            await _sleep(delay)
+            continue
+
+        # No chords — reveal safe cells individually
+        for a in reveals:
+            await browser.click_cell(a.row, a.col)
+            move_count += 1
+
+        if reveals:
             await _sleep(delay)
             continue
 
@@ -186,7 +186,20 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
 
             continue
 
-        # No flags — reveal safe cells
+        # Before individual reveals, check for chords globally
+        chord_actions = solve_chord(board)
+        if chord_actions:
+            for act in chord_actions:
+                await browser.chord_cell(act.row, act.col)
+                move_count += 1
+            await _sleep(delay)
+            if await _check_status():
+                break
+            board = await browser.read_board()
+            print(f"  Chorded {len(chord_actions)} cells")
+            continue
+
+        # No chords — reveal safe cells individually
         for a in reveals:
             await browser.click_cell(a.row, a.col)
             move_count += 1
@@ -198,7 +211,7 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
             board = await browser.read_board()
             continue
 
-        # Deterministic stalled — try chord as fallback
+        # Nothing deterministic — guess
         chord_actions = solve_chord(board)
         if chord_actions:
             for act in chord_actions:
@@ -363,7 +376,16 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         board = await browser.read_board()
                     continue
 
-                # No flags — reveal safe cells
+                # Before individual reveals, check for chords globally
+                chord_actions = solve_chord(board)
+                if chord_actions:
+                    for act in chord_actions:
+                        await browser.chord_cell(act.row, act.col)
+                        move_count += 1
+                    await _sleep(delay)
+                    continue
+
+                # No chords — reveal safe cells individually
                 for a in reveals:
                     await browser.click_cell(a.row, a.col)
                     move_count += 1
@@ -372,8 +394,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     await _sleep(delay)
                     continue
 
-                # Deterministic stalled — try chord as fallback
-                chord_actions = solve_chord(board)
+                # Nothing deterministic — guess
                 if chord_actions:
                     for act in chord_actions:
                         await browser.chord_cell(act.row, act.col)
@@ -489,19 +510,21 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                                 board = await browser.read_board()
                             continue
 
-                        for a in reveals:
-                            await browser.click_cell(a.row, a.col)
-                            move_count += 1
-
-                        if reveals:
-                            await _sleep(delay)
-                            continue
-
+                        # Before individual reveals, check for chords globally
                         chord_actions = solve_chord(board)
                         if chord_actions:
                             for act in chord_actions:
                                 await browser.chord_cell(act.row, act.col)
                                 move_count += 1
+                            await _sleep(delay)
+                            continue
+
+                        # No chords — reveal safe cells individually
+                        for a in reveals:
+                            await browser.click_cell(a.row, a.col)
+                            move_count += 1
+
+                        if reveals:
                             await _sleep(delay)
                             continue
 
