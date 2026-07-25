@@ -163,7 +163,7 @@ class MinesweeperBrowser:
         mid_x = (start_x + target_x) / 2 + random.uniform(-dist * 0.15, dist * 0.15)
         mid_y = (start_y + target_y) / 2 + random.uniform(-dist * 0.15, dist * 0.15)
 
-        steps = max(6, int(dist / 40))
+        steps = max(8, int(dist / 30))
         for i in range(1, steps + 1):
             t = i / steps
             x, y = _bezier(
@@ -177,7 +177,7 @@ class MinesweeperBrowser:
             x += random.uniform(-0.5, 0.5)
             y += random.uniform(-0.5, 0.5)
             await self.page.mouse.move(x, y)
-            await asyncio.sleep(random.uniform(0.008, 0.03))
+            await asyncio.sleep(random.uniform(0.015, 0.05))
 
         self._mouse_x = target_x
         self._mouse_y = target_y
@@ -197,12 +197,12 @@ class MinesweeperBrowser:
 
         # Brief hover (human pauses before clicking)
         if hover_first:
-            await asyncio.sleep(_human_delay(0.06, 0.1))
+            await asyncio.sleep(_human_delay(0.1, 0.2))
 
         await self.page.mouse.click(target_x, target_y, button=button)
 
         # Tiny post-click pause
-        await asyncio.sleep(_human_delay(0.04, 0.06))
+        await asyncio.sleep(_human_delay(0.08, 0.1))
 
     # ── Board reading ─────────────────────────────────────────────────
 
