@@ -66,33 +66,60 @@ async def play_game(
         # Phase 1: deterministic solver
         actions = solve_deterministic(board)
 
-        # Phase 2: chord opportunities
-        if not actions:
-            chord_actions = solve_chord(board)
-            if chord_actions:
+        flags = [a for a in actions if a.type == ActionType.FLAG]
+        reveals = [a for a in actions if a.type == ActionType.REVEAL]
+
+        # Place flags first — they may unlock chords
+        for a in flags:
+            await browser.flag_cell(a.row, a.col)
+            move_count += 1
+
+        if flags:
+            await _sleep(delay)
+            # Aggressively chord after flagging
+            while True:
+                chord_actions = solve_chord(board)
+                if not chord_actions:
+                    break
                 for act in chord_actions:
                     await browser.chord_cell(act.row, act.col)
                     move_count += 1
                 await _sleep(delay)
-                continue
+                board = await browser.read_board(level)
+            continue
 
-        # Phase 3: probability-based guess
-        if not actions:
-            guess = solve_probability(board)
-            if guess:
-                actions = [guess]
-
-        if not actions:
-            if verbose:
-                print("\n  No moves available — board may be complete")
-            break
-
-        for act in actions:
-            if act.type == ActionType.FLAG:
-                await browser.flag_cell(act.row, act.col)
-            else:
-                await browser.click_cell(act.row, act.col)
+        # No flags — reveal safe cells
+        for a in reveals:
+            await browser.click_cell(a.row, a.col)
             move_count += 1
+
+        if reveals:
+            await _sleep(delay)
+            continue
+
+        # Deterministic stalled — try chord as fallback
+        chord_actions = solve_chord(board)
+        if chord_actions:
+            for act in chord_actions:
+                await browser.chord_cell(act.row, act.col)
+                move_count += 1
+            await _sleep(delay)
+            continue
+
+        # Nothing deterministic — guess
+        guess = solve_probability(board)
+        if guess:
+            if guess.type == ActionType.FLAG:
+                await browser.flag_cell(guess.row, guess.col)
+            else:
+                await browser.click_cell(guess.row, guess.col)
+            move_count += 1
+            await _sleep(delay)
+            continue
+
+        if verbose:
+            print("\n  No moves available — board may be complete")
+        break
 
         await _sleep(delay)
 
@@ -116,57 +143,69 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
     while True:
         actions = solve_deterministic(board)
 
-        if not actions:
-            chord_actions = solve_chord(board)
-            if chord_actions:
+        flags = [a for a in actions if a.type == ActionType.FLAG]
+        reveals = [a for a in actions if a.type == ActionType.REVEAL]
+
+        # Place flags first — they may unlock chords
+        for a in flags:
+            await browser.flag_cell(a.row, a.col)
+            move_count += 1
+
+        if flags:
+            await _sleep(delay)
+            board = await browser.read_board()
+
+            # Aggressively chord after flagging
+            while True:
+                chord_actions = solve_chord(board)
+                if not chord_actions:
+                    break
                 for act in chord_actions:
                     await browser.chord_cell(act.row, act.col)
                     move_count += 1
                 await _sleep(delay)
                 board = await browser.read_board()
                 print(f"  Chorded {len(chord_actions)} cells")
-                continue
 
-        if not actions:
-            guess = solve_probability(board)
-            if guess:
-                actions = [guess]
-                print(f"  Guessing ({guess.row},{guess.col})")
+            # Re-check deterministic after chords opened new cells
+            continue
 
-        if not actions:
-            print("  No moves available")
-            break
-
-        flags = [a for a in actions if a.type == ActionType.FLAG]
-        reveals = [a for a in actions if a.type == ActionType.REVEAL]
-
-        for a in flags:
-            await browser.flag_cell(a.row, a.col)
-            move_count += 1
+        # No flags — reveal safe cells
         for a in reveals:
             await browser.click_cell(a.row, a.col)
             move_count += 1
 
-        await _sleep(delay)
+        if reveals:
+            await _sleep(delay)
+            board = await browser.read_board()
+            continue
 
-        board = await browser.read_board()
-        status = await browser.get_game_status()
-        remaining = board.remaining_mines()
-        opened = len(board.opened_cells())
-        total = board.rows * board.cols
-        print(
-            f"  Opened: {opened}/{total} | Mines left: {remaining} | Moves: {move_count}"
-        )
+        # Deterministic stalled — try chord as fallback
+        chord_actions = solve_chord(board)
+        if chord_actions:
+            for act in chord_actions:
+                await browser.chord_cell(act.row, act.col)
+                move_count += 1
+            await _sleep(delay)
+            board = await browser.read_board()
+            print(f"  Chorded {len(chord_actions)} cells")
+            continue
 
-        if status != "ongoing":
-            if status == "won":
-                print("  WON!")
+        # Nothing deterministic — guess
+        guess = solve_probability(board)
+        if guess:
+            if guess.type == ActionType.FLAG:
+                await browser.flag_cell(guess.row, guess.col)
             else:
-                print("  LOST!")
-            break
+                await browser.click_cell(guess.row, guess.col)
+            move_count += 1
+            print(f"  Guessing ({guess.row},{guess.col})")
+            await _sleep(delay)
+            board = await browser.read_board()
+            continue
 
-        if not (flags or reveals):
-            break
+        print("  No moves available")
+        break
 
 
 async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
@@ -269,32 +308,59 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
                 actions = solve_deterministic(board)
 
-                if not actions:
-                    chord_actions = solve_chord(board)
-                    if chord_actions:
+                flags = [a for a in actions if a.type == ActionType.FLAG]
+                reveals = [a for a in actions if a.type == ActionType.REVEAL]
+
+                # Place flags first — they may unlock chords
+                for a in flags:
+                    await browser.flag_cell(a.row, a.col)
+                    move_count += 1
+
+                if flags:
+                    await _sleep(delay)
+                    # Aggressively chord after flagging
+                    while True:
+                        chord_actions = solve_chord(board)
+                        if not chord_actions:
+                            break
                         for act in chord_actions:
                             await browser.chord_cell(act.row, act.col)
                             move_count += 1
                         await _sleep(delay)
-                        continue
+                        board = await browser.read_board()
+                    continue
 
-                if not actions:
-                    guess = solve_probability(board)
-                    if guess:
-                        actions = [guess]
-
-                if not actions:
-                    print("\n  No moves available")
-                    break
-
-                for act in actions:
-                    if act.type == ActionType.FLAG:
-                        await browser.flag_cell(act.row, act.col)
-                    else:
-                        await browser.click_cell(act.row, act.col)
+                # No flags — reveal safe cells
+                for a in reveals:
+                    await browser.click_cell(a.row, a.col)
                     move_count += 1
 
-                await _sleep(delay)
+                if reveals:
+                    await _sleep(delay)
+                    continue
+
+                # Deterministic stalled — try chord as fallback
+                chord_actions = solve_chord(board)
+                if chord_actions:
+                    for act in chord_actions:
+                        await browser.chord_cell(act.row, act.col)
+                        move_count += 1
+                    await _sleep(delay)
+                    continue
+
+                # Nothing deterministic — guess
+                guess = solve_probability(board)
+                if guess:
+                    if guess.type == ActionType.FLAG:
+                        await browser.flag_cell(guess.row, guess.col)
+                    else:
+                        await browser.click_cell(guess.row, guess.col)
+                    move_count += 1
+                    await _sleep(delay)
+                    continue
+
+                print("\n  No moves available")
+                break
 
             print("Bot backed off. Window is still open.")
 
