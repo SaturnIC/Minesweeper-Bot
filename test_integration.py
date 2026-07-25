@@ -11,6 +11,13 @@ from solver import Action, ActionType, solve_chord, solve_deterministic, solve_p
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+async def _rate_limit_delay():
+    """Small delay between tests to avoid rate limiting."""
+    yield
+    await asyncio.sleep(1)
+
+
 @pytest.fixture(scope="module")
 async def browser():
     b = MinesweeperBrowser(headless=True)
@@ -22,7 +29,7 @@ async def browser():
 @pytest.fixture
 async def fresh_game(browser):
     await browser.open_game(1)
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1)
     yield browser
 
 
