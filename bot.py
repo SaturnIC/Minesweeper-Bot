@@ -45,6 +45,10 @@ async def play_game(
             elapsed = time.monotonic() - start_time
             if verbose:
                 print(f"\n  WON in {elapsed:.1f}s, {move_count} moves")
+                await asyncio.sleep(1)
+                stats = await browser.get_stats()
+                for key, val in stats.items():
+                    print(f"    {key}: {val}")
             return True
         if status == "lost":
             if verbose:
@@ -316,6 +320,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                 if status == "won":
                     elapsed = time.monotonic() - start_time
                     print(f"\n  WON in {elapsed:.1f}s, {move_count} moves")
+                    await asyncio.sleep(1)
+                    stats = await browser.get_stats()
+                    for key, val in stats.items():
+                        print(f"    {key}: {val}")
                     break
                 if status == "lost":
                     print(f"\n  LOST after {move_count} moves")
@@ -438,6 +446,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                             elapsed = time.monotonic() - start_time
                             wins += 1
                             print(f"  WON in {elapsed:.1f}s, {move_count} moves  [{wins}/{played}]")
+                            await asyncio.sleep(1)
+                            stats = await browser.get_stats()
+                            for key, val in stats.items():
+                                print(f"    {key}: {val}")
                             break
                         if status == "lost":
                             print(f"  LOST after {move_count} moves  [{wins}/{played}]")

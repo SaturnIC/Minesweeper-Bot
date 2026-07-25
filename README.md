@@ -22,14 +22,15 @@ python bot.py --interactive
 ```
 
 Commands:
-- `play` — play the current game to completion
-- `solve` — solve one step (deterministic, chord, then guess)
+- `play` — play the current game to completion, then stop
+- `playcontinuously` — play games back-to-back, starting a new game after each win/loss with a 5s pause between games. Type `stop` + Enter during the pause to stop gracefully
+- `solve` — solve one step (flag mines, chord, reveal safe cells, guess)
 - `status` — print the board
 - `click <row> <col>` — left-click a cell
 - `flag <row> <col>` — right-click to flag a cell
 - `quit` — exit
 
-The bot auto-detects board size and mine count from the page.
+The bot auto-detects board size and mine count from the page. After winning, it prints game statistics (time, efficiency, etc.) shown by the site.
 
 ### Auto mode
 
@@ -47,6 +48,7 @@ Options:
 - `-d, --delay` — base delay between moves in seconds (default: 0.05)
 - `--headless` — run without a visible browser window
 - `--headful` — run with a visible window (default)
+- `-i, --interactive` — interactive mode
 
 ## Solver
 
@@ -54,7 +56,7 @@ Three-phase approach applied iteratively until the board is solved or stuck:
 
 1. **Constraint propagation** — each numbered cell becomes a constraint (exactly N of its neighbors are mines). Propagate until quiescence, using subset logic: if constraint A's cells are a subset of B's cells, derive information about B\A. This automatically handles 1-2, 1-2-1, and other subset patterns.
 
-2. **Chording** — if a cell's mines are all flagged, middle-click to reveal remaining neighbors.
+2. **Chording** — after flagging mines, immediately check for cells where flagged neighbors == cell value. Middle-click to reveal all unflagged neighbors. This is done aggressively after every flag batch.
 
 3. **Probability-based guess** — when deterministic rules stall, enumerate valid mine placements on the frontier. Pick the cell with the lowest mine probability. Falls back to a random unconstrained cell if the frontier is too large.
 
