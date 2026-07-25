@@ -23,7 +23,7 @@ python bot.py --interactive
 
 Commands:
 - `play` — play the current game to completion, then stop
-- `playcontinuously` — play games back-to-back, starting a new game after each win/loss with a 5s pause between games. Type `stop` + Enter during the pause to stop gracefully
+- `playcont` — play games back-to-back, starting a new game after each win/loss with a 5s pause between games. Type `s` + Enter at any time to stop gracefully
 - `solve` — solve one step (flag mines, chord, reveal safe cells, guess)
 - `status` — print the board
 - `click <row> <col>` — left-click a cell
