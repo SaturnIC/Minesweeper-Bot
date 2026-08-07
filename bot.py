@@ -132,15 +132,15 @@ async def play_game(
                 continue
 
             # Filter reveals: skip cells that would be revealed by any chord
+            # and skip cells that are already opened
             chord_covered = chord_reveals(board)
-            reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+            opened = {(c.row, c.col) for c in board.opened_cells()}
+            reveals = [a for a in reveals if (a.row, a.col) not in chord_covered and (a.row, a.col) not in opened]
 
-            # No chords — reveal safe cells individually
-            for a in reveals:
-                await _verified_click(browser, a.row, a.col)
-                move_count += 1
-
+            # Reveal one cell at a time — clicks can cascade
             if reveals:
+                await _verified_click(browser, reveals[0].row, reveals[0].col)
+                move_count += 1
                 await _sleep(delay)
                 continue
 
@@ -523,14 +523,13 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                 opened = {(c.row, c.col) for c in board.opened_cells()}
                 reveals = [a for a in reveals if (a.row, a.col) not in chord_covered and (a.row, a.col) not in opened]
 
-                # No chords — reveal safe cells individually
-                for a in reveals:
+                # Reveal one cell at a time — clicks can cascade
+                if reveals:
+                    a = reveals[0]
                     ok = await browser.click_cell(a.row, a.col)
                     if not ok:
                         print(f"\n  Click ({a.row},{a.col}) had no effect")
                     move_count += 1
-
-                if reveals:
                     await _sleep(delay)
                     continue
 
@@ -678,14 +677,13 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         opened = {(c.row, c.col) for c in board.opened_cells()}
                         reveals = [a for a in reveals if (a.row, a.col) not in chord_covered and (a.row, a.col) not in opened]
 
-                        # No chords — reveal safe cells individually
-                        for a in reveals:
+                        # Reveal one cell at a time — clicks can cascade
+                        if reveals:
+                            a = reveals[0]
                             ok = await browser.click_cell(a.row, a.col)
                             if not ok:
                                 print(f"\n  Click ({a.row},{a.col}) had no effect")
                             move_count += 1
-
-                        if reveals:
                             await _sleep(delay)
                             continue
 
