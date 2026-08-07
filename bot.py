@@ -432,6 +432,16 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
             await _run_solve_step(browser, delay)
 
         elif action == "play":
+            # Click start cell if present (no-guess mode)
+            start_el = await browser.page.query_selector(".cell.start")
+            if start_el:
+                print("  Clicking start cell…")
+                clicked = await browser.click_start_cell()
+                if not clicked:
+                    print("  Failed to click start cell")
+                    continue
+                await asyncio.sleep(0.5)
+
             status = await browser.get_game_status()
             if status != "ongoing":
                 print("No ongoing game. Navigate to a game in the browser first.")
@@ -574,6 +584,12 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                                 break
                         await browser.new_game()
                         await asyncio.sleep(2)
+
+                    # Click start cell if present (no-guess mode)
+                    start_el = await browser.page.query_selector(".cell.start")
+                    if start_el:
+                        await browser.click_start_cell()
+                        await asyncio.sleep(0.5)
 
                     played += 1
 
