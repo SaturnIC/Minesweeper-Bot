@@ -31,9 +31,11 @@ async def play_game(
     """Play one game of Minesweeper. Returns True if won, False if lost."""
     rows, cols, mine_count = BOARD_SIZES[level]
 
-    # Click center cell to start
-    center_r, center_c = rows // 2, cols // 2
-    await browser.click_cell(center_r, center_c)
+    # Click start cell if it exists (no-guess mode), otherwise click center
+    clicked = await browser.click_start_cell()
+    if not clicked:
+        center_r, center_c = rows // 2, cols // 2
+        await browser.click_cell(center_r, center_c)
     await asyncio.sleep(0.3)
 
     start_time = time.monotonic()
