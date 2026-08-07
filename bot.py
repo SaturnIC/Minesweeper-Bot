@@ -114,9 +114,9 @@ async def play_game(
                     chord_actions = solve_chord(board)
                     if not chord_actions:
                         break
-                    for act in chord_actions:
-                        await _verified_chord(browser, act.row, act.col)
-                        move_count += 1
+                    act = chord_actions[0]
+                    await _verified_chord(browser, act.row, act.col)
+                    move_count += 1
                     await _sleep(delay)
                     board = await browser.read_board(level)
                 continue
@@ -124,9 +124,9 @@ async def play_game(
             # Before individual reveals, check for chords globally
             chord_actions = solve_chord(board)
             if chord_actions:
-                for act in chord_actions:
-                    await _verified_chord(browser, act.row, act.col)
-                    move_count += 1
+                act = chord_actions[0]
+                await _verified_chord(browser, act.row, act.col)
+                move_count += 1
                 await _sleep(delay)
                 continue
 
@@ -214,28 +214,29 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
                     chord_actions = solve_chord(board)
                     if not chord_actions:
                         break
-                    for act in chord_actions:
-                        await _verified_chord(browser, act.row, act.col)
-                        move_count += 1
+                    # Execute one chord, then re-read
+                    act = chord_actions[0]
+                    await _verified_chord(browser, act.row, act.col)
+                    move_count += 1
                     await _sleep(delay)
                     if await _check_status():
                         return
                     board = await browser.read_board()
-                    print(f"  Chorded {len(chord_actions)} cells")
+                    print(f"  Chorded ({act.row},{act.col})")
 
                 continue
 
             # Check chords globally — prioritized by most cells revealed
             chord_actions = solve_chord(board)
             if chord_actions:
-                for act in chord_actions:
-                    await _verified_chord(browser, act.row, act.col)
-                    move_count += 1
+                act = chord_actions[0]
+                await _verified_chord(browser, act.row, act.col)
+                move_count += 1
                 await _sleep(delay)
                 if await _check_status():
                     break
                 board = await browser.read_board()
-                print(f"  Chorded {len(chord_actions)} cells")
+                print(f"  Chorded ({act.row},{act.col})")
                 continue
 
             # Filter reveals: skip cells that would be revealed by any chord
@@ -480,9 +481,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         chord_actions = solve_chord(board)
                         if not chord_actions:
                             break
-                        for act in chord_actions:
-                            await browser.chord_cell(act.row, act.col)
-                            move_count += 1
+                        act = chord_actions[0]
+                        await browser.chord_cell(act.row, act.col)
+                        move_count += 1
                         await _sleep(delay)
                         board = await browser.read_board()
                     continue
@@ -490,9 +491,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                 # Before individual reveals, check for chords globally
                 chord_actions = solve_chord(board)
                 if chord_actions:
-                    for act in chord_actions:
-                        await browser.chord_cell(act.row, act.col)
-                        move_count += 1
+                    act = chord_actions[0]
+                    await browser.chord_cell(act.row, act.col)
+                    move_count += 1
                     await _sleep(delay)
                     continue
 
@@ -618,9 +619,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                                 chord_actions = solve_chord(board)
                                 if not chord_actions:
                                     break
-                                for act in chord_actions:
-                                    await browser.chord_cell(act.row, act.col)
-                                    move_count += 1
+                                act = chord_actions[0]
+                                await browser.chord_cell(act.row, act.col)
+                                move_count += 1
                                 await _sleep(delay)
                                 board = await browser.read_board()
                             continue
@@ -628,9 +629,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         # Before individual reveals, check for chords globally
                         chord_actions = solve_chord(board)
                         if chord_actions:
-                            for act in chord_actions:
-                                await browser.chord_cell(act.row, act.col)
-                                move_count += 1
+                            act = chord_actions[0]
+                            await browser.chord_cell(act.row, act.col)
+                            move_count += 1
                             await _sleep(delay)
                             continue
 
