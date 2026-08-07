@@ -105,6 +105,7 @@ class MinesweeperBrowser:
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-features=IsolateOrigins,site-per-process",
+                "--incognito",
             ],
         )
         self._context = await self._browser.new_context(
@@ -143,6 +144,26 @@ class MinesweeperBrowser:
         await self.page.goto(url, wait_until="networkidle")
         await self.page.wait_for_selector("#game", timeout=30000)
         await asyncio.sleep(_human_delay(0.5, 0.3))
+
+    async def open_no_guess_game(self) -> None:
+        """Open a no-guess mode game."""
+        await self.page.goto("https://minesweeper.online/new-game/ng", wait_until="networkidle")
+        await self.page.wait_for_selector("#game", timeout=30000)
+        await asyncio.sleep(_human_delay(0.5, 0.3))
+
+    async def click_start_cell(self) -> bool:
+        """Click the x-marked start cell in no-guess mode.
+
+        Returns True if a start cell was found and clicked.
+        """
+        el = await self.page.query_selector(".cell.start")
+        if el:
+            box = await el.bounding_box()
+            if box:
+                await self._human_click(box, button="left")
+                await asyncio.sleep(_human_delay(0.3, 0.2))
+                return True
+        return False
 
     # ── Human-like mouse ──────────────────────────────────────────────
 
@@ -315,6 +336,35 @@ class MinesweeperBrowser:
             box = await el.bounding_box()
             if box:
                 await self._human_click(box, button="middle")
+
+    async def get_stats(self) -> dict[str, int | str]:
+        """Read game statistics from the page (timer, mines)."""
+        # Timer digits
+        timer = 0
+        for i, sel in enumerate(["#top_area_time_100", "#top_area_time_10", "#top_area_time_1"]):
+            el = await self.page.query_selector(sel)
+            if el:
+                cls = await el.get_attribute("class") or ""
+                for part in cls.split():
+                    if part.startswith("hd_top-area-num"):
+                        try:
+                            timer += int(part[len("hd_top-area-num"):]) * (10 ** (2 - i))
+                        except ValueError:
+                            pass
+
+        stats: dict[str, int | str] = {"time": timer}
+
+        # Read post-game stats from result blocks (shown after win/loss)
+        for block_id in ["#result_relative_block", "#result_absolute_right_block", "#result_bottom_block"]:
+            block = await self.page.query_selector(block_id)
+            if block:
+                visible = await block.is_visible()
+                if visible:
+                    text = (await block.inner_text()).strip()
+                    if text:
+                        stats[block_id.lstrip("#")] = text
+
+        return stats
 
     async def get_game_status(self) -> Literal["ongoing", "won", "lost"]:
         smiley_el = await self.page.query_selector("#top_area_face")
