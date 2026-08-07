@@ -484,7 +484,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
                 # Place flags first — they may unlock chords
                 for a in flags:
-                    await browser.flag_cell(a.row, a.col)
+                    ok = await browser.flag_cell(a.row, a.col)
+                    if not ok:
+                        print(f"\n  Flag ({a.row},{a.col}) had no effect")
                     move_count += 1
 
                 if flags:
@@ -496,7 +498,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         if not chord_actions:
                             break
                         act = chord_actions[0]
-                        await browser.chord_cell(act.row, act.col)
+                        ok = await browser.chord_cell(act.row, act.col)
+                        if not ok:
+                            print(f"\n  Chord ({act.row},{act.col}) had no effect")
                         move_count += 1
                         await _sleep(delay)
                         board = await browser.read_board()
@@ -506,7 +510,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                 chord_actions = solve_chord(board)
                 if chord_actions:
                     act = chord_actions[0]
-                    await browser.chord_cell(act.row, act.col)
+                    ok = await browser.chord_cell(act.row, act.col)
+                    if not ok:
+                        print(f"\n  Chord ({act.row},{act.col}) had no effect")
                     move_count += 1
                     await _sleep(delay)
                     continue
@@ -519,7 +525,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
                 # No chords — reveal safe cells individually
                 for a in reveals:
-                    await browser.click_cell(a.row, a.col)
+                    ok = await browser.click_cell(a.row, a.col)
+                    if not ok:
+                        print(f"\n  Click ({a.row},{a.col}) had no effect")
                     move_count += 1
 
                 if reveals:
@@ -632,7 +640,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         reveals = [a for a in actions if a.type == ActionType.REVEAL]
 
                         for a in flags:
-                            await browser.flag_cell(a.row, a.col)
+                            ok = await browser.flag_cell(a.row, a.col)
+                            if not ok:
+                                print(f"\n  Flag ({a.row},{a.col}) had no effect")
                             move_count += 1
 
                         if flags:
@@ -643,7 +653,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                                 if not chord_actions:
                                     break
                                 act = chord_actions[0]
-                                await browser.chord_cell(act.row, act.col)
+                                ok = await browser.chord_cell(act.row, act.col)
+                                if not ok:
+                                    print(f"\n  Chord ({act.row},{act.col}) had no effect")
                                 move_count += 1
                                 await _sleep(delay)
                                 board = await browser.read_board()
@@ -653,7 +665,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                         chord_actions = solve_chord(board)
                         if chord_actions:
                             act = chord_actions[0]
-                            await browser.chord_cell(act.row, act.col)
+                            ok = await browser.chord_cell(act.row, act.col)
+                            if not ok:
+                                print(f"\n  Chord ({act.row},{act.col}) had no effect")
                             move_count += 1
                             await _sleep(delay)
                             continue
@@ -666,7 +680,9 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
                         # No chords — reveal safe cells individually
                         for a in reveals:
-                            await browser.click_cell(a.row, a.col)
+                            ok = await browser.click_cell(a.row, a.col)
+                            if not ok:
+                                print(f"\n  Click ({a.row},{a.col}) had no effect")
                             move_count += 1
 
                         if reveals:
