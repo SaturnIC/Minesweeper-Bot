@@ -109,6 +109,7 @@ async def play_game(
 
             if flags:
                 await _sleep(delay)
+                board = await browser.read_board(level)
                 # Aggressively chord after flagging
                 while True:
                     chord_actions = solve_chord(board)
@@ -476,6 +477,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
                 if flags:
                     await _sleep(delay)
+                    board = await browser.read_board()
                     # Aggressively chord after flagging
                     while True:
                         chord_actions = solve_chord(board)
@@ -615,6 +617,7 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
 
                         if flags:
                             await _sleep(delay)
+                            board = await browser.read_board()
                             while True:
                                 chord_actions = solve_chord(board)
                                 if not chord_actions:
