@@ -308,9 +308,11 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
             print(f"  Chorded {len(chord_actions)} cells")
             continue
 
-        # Filter reveals: skip cells that would be revealed by any chord
-        chord_covered = chord_reveals(board)
-        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+            # Filter reveals: skip cells that would be revealed by any chord
+            # and skip cells that are already opened
+            chord_covered = chord_reveals(board)
+            opened = {(c.row, c.col) for c in board.opened_cells()}
+            reveals = [a for a in reveals if (a.row, a.col) not in chord_covered and (a.row, a.col) not in opened]
 
         # No chords — reveal safe cells individually
         for a in reveals:
@@ -500,8 +502,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     continue
 
                 # Filter reveals: skip cells that would be revealed by any chord
+                # and skip cells that are already opened
                 chord_covered = chord_reveals(board)
-                reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+                opened = {(c.row, c.col) for c in board.opened_cells()}
+                reveals = [a for a in reveals if (a.row, a.col) not in chord_covered and (a.row, a.col) not in opened]
 
                 # No chords — reveal safe cells individually
                 for a in reveals:
@@ -639,8 +643,10 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                             continue
 
                         # Filter reveals: skip cells that would be revealed by any chord
+                        # and skip cells that are already opened
                         chord_covered = chord_reveals(board)
-                        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+                        opened = {(c.row, c.col) for c in board.opened_cells()}
+                        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered and (a.row, a.col) not in opened]
 
                         # No chords — reveal safe cells individually
                         for a in reveals:
