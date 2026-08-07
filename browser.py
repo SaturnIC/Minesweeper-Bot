@@ -311,31 +311,55 @@ class MinesweeperBrowser:
 
     # ── Cell interactions ─────────────────────────────────────────────
 
-    async def click_cell(self, row: int, col: int) -> None:
+    async def click_cell(self, row: int, col: int) -> bool:
+        """Click a cell. Returns True if the cell state changed."""
         selector = f"#cell_{col}_{row}"
         el = await self.page.query_selector(selector)
-        if el:
-            box = await el.bounding_box()
-            if box:
-                await self._human_click(box, button="left")
+        if not el:
+            return False
+        box = await el.bounding_box()
+        if not box:
+            return False
+        cls_before = await el.get_attribute("class") or ""
+        await self._human_click(box, button="left")
+        await asyncio.sleep(0.2)
+        cls_after = await el.get_attribute("class") or ""
+        return cls_before != cls_after
 
-    async def flag_cell(self, row: int, col: int) -> None:
+    async def flag_cell(self, row: int, col: int) -> bool:
+        """Flag a cell. Returns True if the cell state changed."""
         selector = f"#cell_{col}_{row}"
         el = await self.page.query_selector(selector)
-        if el:
-            box = await el.bounding_box()
-            if box:
-                await self._human_click(box, button="right")
+        if not el:
+            return False
+        box = await el.bounding_box()
+        if not box:
+            return False
+        cls_before = await el.get_attribute("class") or ""
+        await self._human_click(box, button="right")
+        await asyncio.sleep(0.2)
+        cls_after = await el.get_attribute("class") or ""
+        return cls_before != cls_after
 
-    async def chord_cell(self, row: int, col: int) -> None:
-        """Middle-click an opened cell to reveal all unflagged neighbors
-        (when the number of adjacent flags matches the cell's value)."""
+    async def chord_cell(self, row: int, col: int) -> bool:
+        """Middle-click an opened cell to reveal all unflagged neighbors.
+        Returns True if any cell was revealed."""
         selector = f"#cell_{col}_{row}"
         el = await self.page.query_selector(selector)
-        if el:
-            box = await el.bounding_box()
-            if box:
-                await self._human_click(box, button="middle")
+        if not el:
+            return False
+        box = await el.bounding_box()
+        if not box:
+            return False
+        opened_before = await self.page.evaluate(
+            "() => document.querySelectorAll('.hd_opened').length"
+        )
+        await self._human_click(box, button="middle")
+        await asyncio.sleep(0.2)
+        opened_after = await self.page.evaluate(
+            "() => document.querySelectorAll('.hd_opened').length"
+        )
+        return opened_after > opened_before
 
     async def get_stats(self) -> dict[str, int | str]:
         """Read game statistics from the page (timer, mines)."""

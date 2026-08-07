@@ -22,6 +22,32 @@ async def _sleep(base: float) -> None:
     await asyncio.sleep(base + random.uniform(0, base * 0.8))
 
 
+class ClickError(Exception):
+    """Raised when a click action fails to register."""
+    pass
+
+
+async def _verified_click(browser, row: int, col: int) -> None:
+    """Click a cell and verify it registered. Raises ClickError if not."""
+    ok = await browser.click_cell(row, col)
+    if not ok:
+        raise ClickError(f"Click on ({row},{col}) did not register — stopping")
+
+
+async def _verified_flag(browser, row: int, col: int) -> None:
+    """Flag a cell and verify it registered. Raises ClickError if not."""
+    ok = await browser.flag_cell(row, col)
+    if not ok:
+        raise ClickError(f"Flag on ({row},{col}) did not register — stopping")
+
+
+async def _verified_chord(browser, row: int, col: int) -> None:
+    """Chord a cell and verify it registered. Raises ClickError if not."""
+    ok = await browser.chord_cell(row, col)
+    if not ok:
+        raise ClickError(f"Chord on ({row},{col}) did not register — stopping")
+
+
 async def play_game(
     browser: MinesweeperBrowser,
     level: int,
@@ -70,66 +96,72 @@ async def play_game(
             )
 
         # Phase 1: deterministic solver
-        actions = solve_deterministic(board)
+        try:
+            actions = solve_deterministic(board)
 
-        flags = [a for a in actions if a.type == ActionType.FLAG]
-        reveals = [a for a in actions if a.type == ActionType.REVEAL]
+            flags = [a for a in actions if a.type == ActionType.FLAG]
+            reveals = [a for a in actions if a.type == ActionType.REVEAL]
 
-        # Place flags first — they may unlock chords
-        for a in flags:
-            await browser.flag_cell(a.row, a.col)
-            move_count += 1
+            # Place flags first — they may unlock chords
+            for a in flags:
+                await _verified_flag(browser, a.row, a.col)
+                move_count += 1
 
-        if flags:
-            await _sleep(delay)
-            # Aggressively chord after flagging
-            while True:
-                chord_actions = solve_chord(board)
-                if not chord_actions:
-                    break
+            if flags:
+                await _sleep(delay)
+                # Aggressively chord after flagging
+                while True:
+                    chord_actions = solve_chord(board)
+                    if not chord_actions:
+                        break
+                    for act in chord_actions:
+                        await _verified_chord(browser, act.row, act.col)
+                        move_count += 1
+                    await _sleep(delay)
+                    board = await browser.read_board(level)
+                continue
+
+            # Before individual reveals, check for chords globally
+            chord_actions = solve_chord(board)
+            if chord_actions:
                 for act in chord_actions:
-                    await browser.chord_cell(act.row, act.col)
+                    await _verified_chord(browser, act.row, act.col)
                     move_count += 1
                 await _sleep(delay)
-                board = await browser.read_board(level)
-            continue
+                continue
 
-        # Before individual reveals, check for chords globally
-        chord_actions = solve_chord(board)
-        if chord_actions:
-            for act in chord_actions:
-                await browser.chord_cell(act.row, act.col)
+            # Filter reveals: skip cells that would be revealed by any chord
+            chord_covered = chord_reveals(board)
+            reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+
+            # No chords — reveal safe cells individually
+            for a in reveals:
+                await _verified_click(browser, a.row, a.col)
                 move_count += 1
-            await _sleep(delay)
-            continue
 
-        # Filter reveals: skip cells that would be revealed by any chord
-        chord_covered = chord_reveals(board)
-        reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+            if reveals:
+                await _sleep(delay)
+                continue
 
-        # No chords — reveal safe cells individually
-        for a in reveals:
-            await browser.click_cell(a.row, a.col)
-            move_count += 1
+            # Nothing deterministic — guess
+            guess = solve_probability(board)
+            if guess:
+                if guess.type == ActionType.FLAG:
+                    await _verified_flag(browser, guess.row, guess.col)
+                else:
+                    await _verified_click(browser, guess.row, guess.col)
+                move_count += 1
+                await _sleep(delay)
+                continue
 
-        if reveals:
-            await _sleep(delay)
-            continue
+            if verbose:
+                print("\n  No moves available — board may be complete")
+            break
 
-        # Nothing deterministic — guess
-        guess = solve_probability(board)
-        if guess:
-            if guess.type == ActionType.FLAG:
-                await browser.flag_cell(guess.row, guess.col)
-            else:
-                await browser.click_cell(guess.row, guess.col)
-            move_count += 1
-            await _sleep(delay)
-            continue
-
-        if verbose:
-            print("\n  No moves available — board may be complete")
-        break
+        except ClickError as e:
+            if verbose:
+                print(f"\n  ERROR: {e}")
+            return False
 
         await _sleep(delay)
 
@@ -160,20 +192,89 @@ async def _run_solve_step(browser: MinesweeperBrowser, delay: float) -> None:
         return False
 
     while True:
-        actions = solve_deterministic(board)
+        try:
+            actions = solve_deterministic(board)
 
-        flags = [a for a in actions if a.type == ActionType.FLAG]
-        reveals = [a for a in actions if a.type == ActionType.REVEAL]
+            flags = [a for a in actions if a.type == ActionType.FLAG]
+            reveals = [a for a in actions if a.type == ActionType.REVEAL]
 
-        # Place flags first — they may unlock chords
-        for a in flags:
-            await browser.flag_cell(a.row, a.col)
-            move_count += 1
+            # Place flags first — they may unlock chords
+            for a in flags:
+                await _verified_flag(browser, a.row, a.col)
+                move_count += 1
 
-        if flags:
-            await _sleep(delay)
-            if await _check_status():
-                break
+            if flags:
+                await _sleep(delay)
+                if await _check_status():
+                    break
+                board = await browser.read_board()
+
+                # Aggressively chord after flagging
+                while True:
+                    chord_actions = solve_chord(board)
+                    if not chord_actions:
+                        break
+                    for act in chord_actions:
+                        await _verified_chord(browser, act.row, act.col)
+                        move_count += 1
+                    await _sleep(delay)
+                    if await _check_status():
+                        return
+                    board = await browser.read_board()
+                    print(f"  Chorded {len(chord_actions)} cells")
+
+                continue
+
+            # Check chords globally — prioritized by most cells revealed
+            chord_actions = solve_chord(board)
+            if chord_actions:
+                for act in chord_actions:
+                    await _verified_chord(browser, act.row, act.col)
+                    move_count += 1
+                await _sleep(delay)
+                if await _check_status():
+                    break
+                board = await browser.read_board()
+                print(f"  Chorded {len(chord_actions)} cells")
+                continue
+
+            # Filter reveals: skip cells that would be revealed by any chord
+            chord_covered = chord_reveals(board)
+            reveals = [a for a in reveals if (a.row, a.col) not in chord_covered]
+
+            # No chords — reveal safe cells individually
+            for a in reveals:
+                await _verified_click(browser, a.row, a.col)
+                move_count += 1
+
+            if reveals:
+                await _sleep(delay)
+                if await _check_status():
+                    break
+                board = await browser.read_board()
+                continue
+
+            # Nothing deterministic — guess
+            guess = solve_probability(board)
+            if guess:
+                if guess.type == ActionType.FLAG:
+                    await _verified_flag(browser, guess.row, guess.col)
+                else:
+                    await _verified_click(browser, guess.row, guess.col)
+                move_count += 1
+                await _sleep(delay)
+                if await _check_status():
+                    break
+                board = await browser.read_board()
+                print(f"  Guessing ({guess.row},{guess.col})")
+                continue
+
+            print("  No moves available")
+            break
+
+        except ClickError as e:
+            print(f"\n  ERROR: {e}")
+            break
             board = await browser.read_board()
 
             # Aggressively chord after flagging
