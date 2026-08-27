@@ -51,7 +51,7 @@ async def _verified_chord(browser, row: int, col: int) -> None:
 async def play_game(
     browser: MinesweeperBrowser,
     level: int,
-    delay: float = 0.05,
+    delay: float = 0.035,
     verbose: bool = True,
 ) -> bool:
     """Play one game of Minesweeper. Returns True if won, False if lost."""
@@ -581,8 +581,8 @@ async def play_interactive(browser: MinesweeperBrowser, delay: float) -> None:
                     if status != "ongoing":
                         # Start a new game
                         if played > 0:
-                            print(f"  → Waiting 5s… (type 's' to stop)")
-                            for _ in range(10):
+                            print(f"  → Waiting 1s… (type 's' to stop)")
+                            for _ in range(2):
                                 await asyncio.sleep(0.5)
                                 if await asyncio.get_event_loop().run_in_executor(None, _check_stdin):
                                     stop = True
@@ -727,8 +727,8 @@ async def main() -> None:
     parser.add_argument(
         "-d", "--delay",
         type=float,
-        default=0.05,
-        help="Delay between moves in seconds (default: 0.05)",
+        default=0.035,
+        help="Delay between moves in seconds (default: 0.035)",
     )
     parser.add_argument(
         "--headless",
